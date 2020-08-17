@@ -191,11 +191,8 @@ func (r Reconciler) reconcileDeploymentsAndVPAs(nsName string, vpas []v1beta2.Ve
 }
 
 func (r Reconciler) reconcileDeploymentAndVPA(nsName string, deployment appsv1.Deployment, vpa *v1beta2.VerticalPodAutoscaler, vpaUpdateMode v1beta2.UpdateMode) error {
-	// check if the Deployment has its own vpa-update-mode set
-	if _, ok := deployment.GetAnnotations()[utils.VpaUpdateModeKey]; ok {
-		vpaUpdateMode = vpaUpdateModeForResource(&deployment)
-		klog.V(5).Infof("Deployment/%s has custom vpa-update-mode=%s", deployment.Name, vpaUpdateMode)
-	}
+	vpaUpdateMode = vpaUpdateModeForResource(&deployment)
+	klog.V(5).Infof("Deployment/%s has custom vpa-update-mode=%s", deployment.Name, vpaUpdateMode)
 
 	if vpa == nil {
 		klog.V(5).Infof("Deployment/%s does not have a VPA currently, creating VPA/%s", deployment.Name, deployment.Name)
@@ -322,21 +319,14 @@ func (r Reconciler) updateVPA(namespace string, vpa *v1beta2.VerticalPodAutoscal
 // vpaUpdateModeForResource searches the resource's annotations and labels for a vpa-update-mode
 // key/value and uses that key/value to return the proper UpdateMode type
 func vpaUpdateModeForResource(obj runtime.Object) v1beta2.UpdateMode {
-	var requestedVPAMode string
+	requestedVPAMode := string(v1beta2.UpdateModeOff)
 
 	// check for vpa-update-mode in annotations first
 	accessor, _ := meta.Accessor(obj)
 	if val, ok := accessor.GetAnnotations()[utils.VpaUpdateModeKey]; ok {
 		requestedVPAMode = val
-	} else {
-		// check for vpa-update-mode in labels
-		for k, v := range accessor.GetLabels() {
-			if strings.ToLower(k) != utils.VpaUpdateModeKey {
-				continue
-			}
-
-			requestedVPAMode = v
-		}
+	} else 	if val, ok := accessor.GetLabels()[utils.VpaUpdateModeKey]; ok {
+		requestedVPAMode = val
 	}
 
 	// See: https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1beta2/types.go#L101
